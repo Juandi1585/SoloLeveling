@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eventos del Calendario</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Sección izquierda: Calendario -->
+        <div class="left-section">
+            <h1>📅 Eventos del Calendario</h1>
+            <div id="calendar-content"></div>
+        </div>
+        
+        <!-- Sección central: Cargar archivo y mostrar datos -->
+        <div class="middle-section">
+            <button id="upload-button">CARGAR ARCHIVO</button>
+            <div id="file-info">📜 Aquí se mostrará la información del archivo</div>
+        </div>
+
+        <!-- Sección derecha: Chatbot -->
+        <div class="right-section">
+            <h2>🤖 Chatbot</h2>
+            <div id="chatbox"></div>
+            <div class="chat-input">
+                <input type="text" id="chat-input-field" placeholder="Escribe tu mensaje...">
+                <button id="send-button">Enviar</button>
+            </div>
+        </div>
+        <!-- Nueva Sección: Actividades de Strava -->
+        <div class="strava-section">
+            <h2>📈 Actividades de Strava</h2>
+            <div id="strava-content">Cargando actividades...</div>
+        </div>
+    </div>
+    </div>
+        
+    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
