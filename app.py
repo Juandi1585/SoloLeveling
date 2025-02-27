@@ -10,6 +10,7 @@ import pandas as pd
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
+import google.generativeai as genai  # Importación de la biblioteca de Gemini
 
 # ============================
 # CONFIGURACIÓN STRAVA
@@ -21,8 +22,11 @@ STRAVA_REFRESH_TOKEN = "D:\\Programación\\SoloLeveling\\claves\\strava_refresh_
 STRAVA_ACCESS_TOKEN = None  # Inicialmente vacío
 TOKEN_EXPIRATION = None  # Guardaremos la fecha de expiración
 
-# 🔹 URL para obtener un nuevo `Access Token`
-TOKEN_URL = "https://www.strava.com/oauth/token"
+# ============================
+# CONFIGURACIÓN GEMINI
+# ============================
+# 🔹 CREDENCIALES DE GEMINI (OBTÉN LA API KEY DESDE Google AI Studio)
+GEMINI_API_KEY_PATH = "D:\\Programación\\SoloLeveling\\claves\\gemini_api_key.txt"
 
 def cargar_clave_desde_archivo(archivo_ruta):
     """
@@ -36,12 +40,27 @@ def cargar_clave_desde_archivo(archivo_ruta):
     except FileNotFoundError:
         print(f"Error: Archivo de clave no encontrado: {archivo_ruta}")
         return None  # Devuelve None si el archivo no se encuentra
- 
 
 # Carga las claves desde los archivos
 STRAVA_CLIENT_SECRET = cargar_clave_desde_archivo(STRAVA_CLIENT_SECRET)
 STRAVA_REFRESH_TOKEN = cargar_clave_desde_archivo(STRAVA_REFRESH_TOKEN)
-   
+
+# Intentar cargar la API KEY de Gemini
+try:
+    GEMINI_API_KEY = cargar_clave_desde_archivo(GEMINI_API_KEY_PATH)
+    if GEMINI_API_KEY:
+        # Configurar Gemini con la API key
+        genai.configure(api_key=GEMINI_API_KEY)
+        print("✅ API Key de Gemini cargada correctamente")
+    else:
+        print("❌ No se pudo cargar la API Key de Gemini")
+except Exception as e:
+    print(f"❌ Error al configurar Gemini: {str(e)}")
+    GEMINI_API_KEY = None
+
+# 🔹 URL para obtener un nuevo `Access Token`
+TOKEN_URL = "https://www.strava.com/oauth/token"
+
 def refresh_access_token():
     """
     📌 Obtiene un nuevo access_token usando el refresh_token cuando el actual expira.
@@ -262,9 +281,7 @@ def load_excel():
     df_heroe = sheets['HEROE']
     return jsonify(format_heroe_data(df_heroe))
 
-# 🔹 INTEGRACIÓN CON LM STUDIO (CHATBOT)
-LM_STUDIO_API_URL = "http://localhost:1234/v1/chat/completions"
-
+# 🔹 INTEGRACIÓN CON GEMINI (CHATBOT)
 SYSTEM_PROMPT = """
 🎭 **ROL DEL MODELO: Dungeon Master Inteligente y Adaptativo**  
 Eres un Dungeon Master altamente inmersivo y adaptable.  
@@ -284,10 +301,9 @@ Tu misión es dirigir una aventura de rol en la que el jugador pueda tomar cualq
 4️⃣ **Cierra cada respuesta dejando en claro que el jugador puede tomar una nueva decisión.**  
 """
 
-
 @app.route("/api", methods=["POST"])
-def chat_with_llm():
-    """Recibe un mensaje del usuario y lo envía al modelo en LM Studio"""
+def chat_with_gemini():
+    """Recibe un mensaje del usuario y lo envía a Gemini"""
     try:
         data = request.json
         user_message = data.get("message", "")
@@ -295,39 +311,45 @@ def chat_with_llm():
         if not user_message:
             return jsonify({"response": "No se recibió un mensaje válido"}), 400
 
-        # Configurar la petición a LM Studio
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "model": "neural-chat-7b-v3-1",  # Ajusta si usas otro modelo
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},  # Prompt persistente
-                {"role": "user", "content": user_message}  # Mensaje del usuario
-            ],
-            "temperature": 0.6,
-            "max_tokens": 2048
-        }
+        # Verificar que tenemos la API key configurada
+        if not GEMINI_API_KEY:
+            return jsonify({"response": "Error: API Key de Gemini no configurada"}), 500
 
-        # Enviar la consulta al modelo
-        response = requests.post(LM_STUDIO_API_URL, headers=headers, json=payload)
-        response_json = response.json()
-
-        print("🔹 Respuesta completa de LM Studio:", response_json)  # Debugging
-
-        # Extraer la respuesta correctamente
-        choices = response_json.get("choices", [])
-        if choices:
-            bot_response = choices[0].get("message", {}).get("content", "Error: No hay contenido en la respuesta.")
-        else:
-            bot_response = "Error: No se recibieron respuestas del modelo."
-
-        # LIMPIAR RESPUESTA:
-        bot_response = re.sub(r"<think>.*?</think>", "", bot_response, flags=re.DOTALL)
-        bot_response = re.sub(r"\\boxed{(.*?)}", r"\1", bot_response)
-        bot_response = bot_response.strip()
-
-        return jsonify({"response": bot_response})
+        try:
+            # Configurar el modelo de Gemini
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            
+            # Crear una conversación con el prompt del sistema
+            chat = model.start_chat(history=[
+                {
+                    "role": "user",
+                    "parts": [SYSTEM_PROMPT]
+                },
+                {
+                    "role": "model",
+                    "parts": ["Entendido, actuaré como un Dungeon Master inmersivo y adaptativo."]
+                }
+            ])
+            
+            # Enviar el mensaje del usuario
+            response = chat.send_message(user_message)
+            
+            # Extraer la respuesta
+            bot_response = response.text
+            
+            # Limpiar la respuesta si es necesario
+            bot_response = re.sub(r"<think>.*?</think>", "", bot_response, flags=re.DOTALL)
+            bot_response = re.sub(r"\\boxed{(.*?)}", r"\1", bot_response)
+            bot_response = bot_response.strip()
+            
+            return jsonify({"response": bot_response})
+            
+        except Exception as e:
+            print(f"❌ Error específico de Gemini: {str(e)}")
+            return jsonify({"response": f"Error al comunicarse con Gemini: {str(e)}"}), 500
 
     except Exception as e:
+        print(f"❌ Error general: {str(e)}")
         return jsonify({"response": f"Error: {str(e)}"}), 500
 
 
