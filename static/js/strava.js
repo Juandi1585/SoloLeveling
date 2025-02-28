@@ -2,31 +2,40 @@
 
 export async function loadStravaActivities() {
     const stravaContent = document.getElementById('strava-content');
+    if (!stravaContent) return;
 
     try {
-        const response = await fetch('http://127.0.0.1:8080/strava/activities');
-        if (!response.ok) throw new Error('No se pudieron obtener las actividades');
+        const response = await fetch('http://localhost:8080/strava/activities');
+        if (!response.ok) throw new Error('Error al cargar actividades');
 
-        const data = await response.json();
-        console.log("🏃 Actividades de Strava recibidas:", data);
+        const activities = await response.json();
+        
+        // Limpiar contenido anterior
+        stravaContent.innerHTML = '<h2>🏃 Actividades Recientes</h2>';
 
-        stravaContent.innerHTML = "<h2>🏃 Últimas Actividades de Strava</h2>";
-
-        if (data.length > 0) {
-            data.forEach(activity => {
-                let activityHTML = `<div class="activity">
-                    <h3>${activity.name}</h3>
-                    <p>📅 Fecha: ${new Date(activity.start_date).toLocaleDateString()}</p>
-                    <p>🕒 Duración: ${Math.round(activity.moving_time / 60)} min</p>
-                    <p>📏 Distancia: ${(activity.distance / 1000).toFixed(2)} km</p>
-                </div>`;
-                stravaContent.innerHTML += activityHTML;
-            });
-        } else {
-            stravaContent.innerHTML += "<p>No hay actividades recientes.</p>";
+        if (activities.length === 0) {
+            stravaContent.innerHTML += '<p>No hay actividades recientes.</p>';
+            return;
         }
+
+        activities.forEach(activity => {
+            const date = new Date(activity.start_date).toLocaleDateString();
+            const distance = (activity.distance / 1000).toFixed(2);
+            const duration = Math.floor(activity.moving_time / 60);
+
+            const activityHTML = `
+                <div class="activity">
+                    <h3>${activity.name}</h3>
+                    <p>📅 ${date}</p>
+                    <p>📏 ${distance} km</p>
+                    <p>⏱️ ${duration} minutos</p>
+                </div>
+            `;
+            stravaContent.innerHTML += activityHTML;
+        });
+
     } catch (error) {
-        console.error("❌ Error al obtener datos de Strava:", error);
-        stravaContent.innerHTML = "<p style='color: red;'>❌ No se pudieron cargar las actividades.</p>";
+        console.error('Error al cargar actividades:', error);
+        stravaContent.innerHTML = '<p class="error">❌ Error al cargar las actividades</p>';
     }
 }

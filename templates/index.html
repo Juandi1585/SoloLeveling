@@ -3,40 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eventos del Calendario</title>
+    <title>LevelUP</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/icono_casco.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
-    <div class="container">
-        <!-- Sección izquierda: Calendario -->
-        <div class="left-section">
-            <h1>📅 Eventos del Calendario</h1>
-            <div id="calendar-content"></div>
-        </div>
-        
-        <!-- Sección central: Cargar archivo y mostrar datos -->
-        <div class="middle-section">
-            <button id="upload-button">CARGAR ARCHIVO</button>
-            <div id="file-info">📜 Aquí se mostrará la información del archivo</div>
-        </div>
+    <!-- 📌 Escena de Carga -->
+    <div id="loading-screen" class="loading-screen">
+        <video id="loading-video" 
+               muted 
+               playsinline 
+               preload="auto"
+               disablePictureInPicture>
+        </video>
+    </div>
+    <script type="module" src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js"></script>
 
-        <!-- Sección derecha: Chatbot -->
-        <div class="right-section">
-            <h2>🤖 Chatbot</h2>
-            <div id="chatbox"></div>
-            <div class="chat-input">
-                <input type="text" id="chat-input-field" placeholder="Escribe tu mensaje...">
-                <button id="send-button">Enviar</button>
+    <!-- 📌 Contenido Principal (Oculto inicialmente) -->
+    <div id="main-content" class="hidden">
+        <!-- Título principal -->
+        <header class="main-title" style="color: white; text-shadow: 2px 2px 4px #000000; background: linear-gradient(to right, black, electricblue);">JD Leveling</header>
+        <!-- Menú de navegación -->
+        <nav class="navbar">
+            <button class="nav-button" onclick="showSection('hero-section')">🛡️ Héroe</button>
+            <button class="nav-button" onclick="showSection('dungeon-section')">🏰 Dungeon</button>
+            <button class="nav-button" onclick="showSection('stats-section')">📊 Estadísticas</button>
+            <button class="nav-button" onclick="showSection('adventure-section')">⚔️ Aventura</button>
+            <button class="nav-button" onclick="showSection('diary-section')">📖 Diario</button>
+        </nav>
+
+        <!-- 📌 Contenedor principal -->
+        <div class="container">
+            <!-- Secciones -->
+            <!-- 🔹 Sección de Héroe -->
+            <div id="hero-section" class="section active">
+                <h1>🛡️ Información del Héroe</h1>
+                <button id="update-button">Actualizar</button>
+                <div id="file-info">Aquí se mostrará la información del héroe.</div>
+            </div>
+
+            <!-- 🔹 Sección de Estadísticas -->
+            <div id="stats-section" class="section">
+                <h1>📊 Estadísticas</h1>
+                <div class="stats-grid">
+                    <div class="stats-box">
+                        <h2>📅 Eventos del Calendario</h2>
+                        <div id="calendar-content" class="calendar-container">
+                            <h3>Eventos para Hoy:</h3>
+                            <!-- ...existing code... -->
+                        </div>
+                    </div>
+                    <div class="stats-box">
+                        <h2>🏃 Actividades de Strava</h2>
+                        <div id="strava-content"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🔹 Sección de Aventura (Chatbot) -->
+            <div id="adventure-section" class="section">
+                <h1>⚔️ Aventura</h1>
+                <div id="chatbox"></div>
+                <div class="chat-container">
+                    <input type="text" id="chat-input-field" placeholder="Escribe tu acción..." />
+                    <button id="send-button">Enviar</button>
+                </div>
+            </div>
+
+            <!-- 🔹 Sección de Dungeon -->
+            <div id="dungeon-section" class="section">
+                <h1>🏰 Dungeon 3D</h1>
+                <!-- El contenedor donde se renderizará Three.js -->
+                <div id="dungeon-map" style="width:100%; height:600px;"></div>
+            </div>
+
+            <!-- 🔹 Sección de Diario -->
+            <div id="diary-section" class="section">
+                <h1>📖 Diario</h1>
+                <div class="diary-menu">
+                    <button class="diary-button" onclick="showDiarySection('enemies-section')">🗡️ Enemigos</button>
+                    <button class="diary-button" onclick="showDiarySection('rules-section')">📜 Reglas</button>
+                </div>
+                <div id="enemies-section" class="diary-section active">
+                    <h2>🗡️ Enemigos</h2>
+                    <div id="enemies-info">Aquí se mostrarán los enemigos registrados.</div>
+                </div>
+                <div id="rules-section" class="diary-section">
+                    <h2>📜 Reglas</h2>
+                    <div id="rules-info">Aquí se mostrarán las reglas del juego.</div>
+                </div>
             </div>
         </div>
-        <!-- Nueva Sección: Actividades de Strava -->
-        <div class="strava-section">
-            <h2>📈 Actividades de Strava</h2>
-            <div id="strava-content">Cargando actividades...</div>
-        </div>
     </div>
-    </div>
-        
+
+    <!-- Scripts -->
+    <script>
+        // Funciones de navegación simples
+        function showSection(sectionId) {
+            const sections = document.querySelectorAll('.section');
+            sections.forEach(section => section.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+        }
+
+        function showDiarySection(sectionId) {
+            const diarySections = document.querySelectorAll('.diary-section');
+            diarySections.forEach(section => section.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+        }
+    </script>
+    <script>
+        // Función para ocultar la pantalla de carga y mostrar el contenido principal
+        function showMainContent() {
+            const loadingScreen = document.getElementById('loading-screen');
+            const mainContent = document.getElementById('main-content');
+            loadingScreen.classList.add('hidden'); // Ocultar la pantalla de carga
+            mainContent.classList.remove('hidden'); // Mostrar el contenido principal
+        }
+    </script>
     <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

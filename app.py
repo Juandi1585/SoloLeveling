@@ -10,6 +10,8 @@ import pandas as pd
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
+import google.auth  # 👈 Importar la librería de autenticación de Google
+from google.auth.transport.requests import Request  # 👈 Importante para refrescar las credenciales
 import google.generativeai as genai  # Importación de la biblioteca de Gemini
 
 # ============================
@@ -117,29 +119,32 @@ def get_activities():
         return {"error": "No se pudieron obtener las actividades"}
 
 
-# CONFIGURACIÓN DE AUTENTICACIÓN CON GOOGLE DRIVE Y CALENDAR
-SCOPES = ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/drive']
-SERVICE_ACCOUNT_FILE = 'C:\\Programas\\Web_rutinas\\Claves\\calendario.json'
+# ============================
+# CONFIGURACIÓN GOOGLE
+# ============================
+SCOPES_GOOGLE_API = [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/drive'
+]
+SERVICE_ACCOUNT_FILE = 'claves/calendario.json'
 
-# Verificar si el archivo de credenciales existe
 if not os.path.exists(SERVICE_ACCOUNT_FILE):
     print(f"❌ ERROR: No se encontró el archivo de credenciales en {SERVICE_ACCOUNT_FILE}")
     exit(1)
 
-credentials = service_account.Credentials.from_service_account_file(
-    SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-
-# Conectar con Google Calendar y Google Drive
+credentials_google = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE, scopes=SCOPES_GOOGLE_API)
+    
+# Conectar con Google Calendar y Google Drive (sin cambios)
 try:
-    service_calendar = build('calendar', 'v3', credentials=credentials)
-    service_drive = build('drive', 'v3', credentials=credentials)
+    service_calendar = build('calendar', 'v3', credentials=credentials_google)
+    service_drive = build('drive', 'v3', credentials=credentials_google)
     print("✅ Conexión con Google Calendar y Drive establecida correctamente.")
 except Exception as e:
-    print(f"❌ ERROR al conectar con Google: {str(e)}")
+    print(f"❌ ERROR al conectar con Google Calendar/Drive: {str(e)}")
     exit(1)
 
 calendar_id = 'cuenta.ia.compartida.pablo@gmail.com'
-
 
 # 🔹 FUNCIÓN PARA OBTENER EVENTOS DEL CALENDARIO
 def get_events(start_time, end_time):
@@ -159,7 +164,6 @@ def get_events(start_time, end_time):
         print(f"❌ ERROR al obtener eventos del calendario: {str(e)}")
         return []
 
-
 # 🔹 FUNCIÓN PARA OBTENER ARCHIVOS DE GOOGLE DRIVE
 def get_drive_file(file_name):
     """
@@ -173,9 +177,9 @@ def get_drive_file(file_name):
             return None
 
         file_id = items[0]['id']
-        request = service_drive.files().get_media(fileId=file_id)
+        request_file = service_drive.files().get_media(fileId=file_id)
         file_data = io.BytesIO()
-        downloader = MediaIoBaseDownload(file_data, request)
+        downloader = MediaIoBaseDownload(file_data, request_file)
         done = False
         while not done:
             status, done = downloader.next_chunk()
@@ -188,14 +192,14 @@ def get_drive_file(file_name):
         print(f"❌ ERROR al obtener el archivo de Google Drive: {str(e)}")
         return None
 
-
-# 🔹 CONFIGURACIÓN DE LA APLICACIÓN FLASK
+# ============================
+# CONFIGURACIÓN DE LA APLICACIÓN FLASK
+# ============================
 app = Flask(__name__)
 CORS(app)  # Habilitar CORS para permitir peticiones desde el frontend
 
 # 📂 Verificar si Flask está detectando correctamente la carpeta de templates
 print(f"📂 Flask está usando la carpeta de templates en: {os.path.abspath(app.template_folder)}")
-
 
 # 🔹 ENDPOINT PARA LA PÁGINA PRINCIPAL
 @app.route('/')
@@ -211,8 +215,7 @@ def home():
         return f"❌ ERROR: No se encuentra index.html en {template_path}", 404
 
     print("✅ index.html encontrado. Cargando en el navegador...")
-    return render_template('index.html')
-
+    return render_template('index.html', title="JD Leveling")
 
 # 🔹 ENDPOINT PARA OBTENER EVENTOS DEL CALENDARIO
 @app.route('/events', methods=['GET'])
@@ -229,7 +232,6 @@ def events():
 
     if not events_today:
         print("📅 No hay eventos registrados en Google Calendar para hoy o mañana.")
-    # 🔎 Verifica qué estructura devuelve antes de enviarlo
     print("📤 JSON devuelto por /events:", events_today)  
     return jsonify(events_today)
 
@@ -246,12 +248,15 @@ def strava_activities():
 
         url = "https://www.strava.com/api/v3/athlete/activities"
         headers = {"Authorization": f"Bearer {access_token}"}
+        params = {
+            "after": (datetime.datetime.now() - datetime.timedelta(days=7)).timestamp()
+        }
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, params=params)
         if response.status_code != 200:
             return jsonify({"error": response.json()}), response.status_code
 
-        return jsonify(response.json())  # Devuelve las actividades como JSON
+        return jsonify(response.json())
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -262,7 +267,6 @@ def format_heroe_data(df_heroe):
     Formatea los datos de la hoja HEROE en un diccionario JSON.
     """
     return {row['Atributo']: row['Valor'] for _, row in df_heroe.iterrows()}
-
 
 @app.route('/load_excel', methods=['GET'])
 def load_excel():
@@ -281,7 +285,37 @@ def load_excel():
     df_heroe = sheets['HEROE']
     return jsonify(format_heroe_data(df_heroe))
 
-# 🔹 INTEGRACIÓN CON GEMINI (CHATBOT)
+@app.route('/load_enemies', methods=['GET'])
+def load_enemies():
+    """Carga la hoja de Enemigos del archivo Excel."""
+    file_name = 'RPG_LifeMaker.xlsx'
+    sheets = get_drive_file(file_name)
+
+    if sheets is None:
+        return jsonify({"error": "No se pudo obtener el archivo"}), 404
+
+    if 'ENEMIGOS' not in sheets:
+        return jsonify({"error": "No se encontró la hoja Enemigos"}), 404
+
+    df_enemies = sheets['Enemigos']
+    return jsonify(df_enemies.to_dict('records'))
+
+@app.route('/load_rules', methods=['GET'])
+def load_rules():
+    """Carga la hoja de REGLAS del archivo Excel."""
+    file_name = 'RPG_LifeMaker.xlsx'
+    sheets = get_drive_file(file_name)
+
+    if sheets is None:
+        return jsonify({"error": "No se pudo obtener el archivo"}), 404
+
+    if 'REGLAS' not in sheets:
+        return jsonify({"error": "No se encontró la hoja REGLAS"}), 404
+
+    df_rules = sheets['REGLAS']
+    contenido = df_rules.iloc[0,0] if not df_rules.empty else "No hay reglas disponibles"
+    return jsonify({"contenido": contenido})
+
 SYSTEM_PROMPT = """
 🎭 **ROL DEL MODELO: Dungeon Master Inteligente y Adaptativo**  
 Eres un Dungeon Master altamente inmersivo y adaptable.  
@@ -351,7 +385,6 @@ def chat_with_gemini():
     except Exception as e:
         print(f"❌ Error general: {str(e)}")
         return jsonify({"response": f"Error: {str(e)}"}), 500
-
 
 # 🔹 INICIAR SERVIDOR
 if __name__ == "__main__":
