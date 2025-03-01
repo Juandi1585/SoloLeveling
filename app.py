@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, send_from_directory
 from flask_cors import CORS
 import requests
 import json
@@ -201,6 +201,30 @@ CORS(app)  # Habilitar CORS para permitir peticiones desde el frontend
 # 📂 Verificar si Flask está detectando correctamente la carpeta de templates
 print(f"📂 Flask está usando la carpeta de templates en: {os.path.abspath(app.template_folder)}")
 
+# Agregar esta línea para debug de archivos estáticos
+print(f"📂 Directorio estático de Flask: {app.static_folder}")
+
+@app.route('/static/js/<path:filename>')
+def serve_static(filename):
+    """Servir archivos estáticos con cache-control desactivado"""
+    print(f"🔍 Solicitud de archivo JS: {filename}")
+    
+    # Si el archivo es strava.js, redirigir a strava_v2.js
+    #if filename == 'strava.js':
+    #    filename = 'strava_v2.js'
+    #    print(f"📝 Redirigiendo a: {filename}")
+    
+    try:
+        response = send_from_directory(app.static_folder + '/js', filename)
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        print(f"✅ Sirviendo archivo JS: {filename}")
+        return response
+    except Exception as e:
+        print(f"❌ Error sirviendo {filename}: {str(e)}")
+        return f"Error: {str(e)}", 404
+
 # 🔹 ENDPOINT PARA LA PÁGINA PRINCIPAL
 @app.route('/')
 def home():
@@ -239,7 +263,7 @@ def events():
 @app.route('/strava/activities', methods=['GET'])
 def strava_activities():
     """
-    📌 Obtiene las últimas actividades del usuario desde Strava.
+    📌 Obtiene todas las actividades del usuario desde Strava.
     """
     try:
         access_token = get_valid_access_token()
@@ -249,16 +273,32 @@ def strava_activities():
         url = "https://www.strava.com/api/v3/athlete/activities"
         headers = {"Authorization": f"Bearer {access_token}"}
         params = {
-            "after": (datetime.datetime.now() - datetime.timedelta(days=7)).timestamp()
+            "per_page": 100,  # Máximo número de actividades por página
+            "page": 1        # Primera página
         }
 
-        response = requests.get(url, headers=headers, params=params)
-        if response.status_code != 200:
-            return jsonify({"error": response.json()}), response.status_code
+        print(f"🔍 Solicitando todas las actividades a Strava")
+        print(f"- URL: {url}")
+        print(f"- Per page: {params['per_page']}")
 
-        return jsonify(response.json())
+        response = requests.get(url, headers=headers, params=params)
+        
+        print("📋 Headers de respuesta:", dict(response.headers))
+        
+        if response.status_code != 200:
+            print(f"❌ Error {response.status_code} de Strava:", response.text)
+            return jsonify({"error": f"Error {response.status_code} de Strava"}), response.status_code
+
+        activities = response.json()
+        
+        print(f"✅ Recibidas {len(activities)} actividades de Strava")
+        for idx, activity in enumerate(activities):
+            print(f"📅 Actividad {idx + 1}: {activity['name']} - {activity['start_date']}")
+
+        return jsonify(activities)
 
     except Exception as e:
+        print("❌ Error en strava_activities:", str(e))
         return jsonify({"error": str(e)}), 500
 
 # 🔹 ENDPOINT PARA OBTENER DATOS DEL ARCHIVO EXCEL

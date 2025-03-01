@@ -3,10 +3,24 @@
 // Importar los módulos
 import { loadCalendarEvents } from './calendar.js';
 import { loadHeroData } from './hero.js';
-import { loadStravaActivities } from './strava.js';
+import { loadStravaActivities } from './strava.js';  // Volver al nombre original
 import { initializeChatbot } from './chatbot.js';
 import { initializeDungeon3D } from './dungeon3d.js';
 //import { initializeDungeon } from './dungeon.js';
+
+function showSection(sectionId) {
+    const sections = document.querySelectorAll('.section');
+    sections.forEach(section => section.classList.remove('active'));
+    const activeSection = document.getElementById(sectionId);
+    activeSection.classList.add('active');
+
+    // Recargar datos si es la sección de estadísticas
+    if (sectionId === 'stats-section') {
+        console.log('🔄 Recargando datos de estadísticas...');
+        loadCalendarEvents();
+        loadStravaActivities();
+    }
+}
 
 // Variable para rastrear el progreso de la carga
 let loadDataPromises = [];
@@ -33,14 +47,32 @@ function setupLoadingVideo() {
 // Función para cargar datos
 async function loadData() {
     try {
+        console.log('🎮 Iniciando carga de datos...');
+        
         // Iniciar la carga del video
         const videoPromise = setupLoadingVideo();
 
-        // Cargar datos mientras se reproduce el video
+        // Cargar Strava de manera más simple
+        try {
+            console.log('🏃‍♂️ Intentando cargar datos de Strava...');
+            await loadStravaActivities();
+            console.log('✅ Carga de Strava completada');
+        } catch (stravaError) {
+            console.error('❌ Error cargando Strava:', stravaError);
+        }
+
+        // Cargar calendario de manera independiente
+        try {
+            console.log('📅 Intentando cargar eventos del calendario...');
+            await loadCalendarEvents();
+            console.log('✅ Eventos del calendario cargados correctamente');
+        } catch (calendarError) {
+            console.error('❌ Error cargando calendario:', calendarError);
+        }
+
+        // Resto de cargas
         const dataPromises = [
-            loadCalendarEvents(),
             loadHeroData(),
-            loadStravaActivities(),
             initializeChatbot(),
             initializeDungeon3D()
             //initializeDungeon()
@@ -57,7 +89,7 @@ async function loadData() {
         // Mostrar el contenido principal
         showMainContent();
     } catch (error) {
-        console.error('Error durante la carga:', error);
+        console.error('❌ Error general en loadData:', error);
 
         // En caso de error, mostrar el contenido principal de todos modos
         showMainContent();
@@ -83,4 +115,14 @@ function showMainContent() {
 }
 
 // Iniciar cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', loadData);
+document.addEventListener('DOMContentLoaded', () => {
+    loadData();
+
+    const navButtons = document.querySelectorAll('.nav-button');
+    navButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const sectionId = e.target.getAttribute('onclick').match(/'([^']+)'/)[1];
+            showSection(sectionId);
+        });
+    });
+});

@@ -45,17 +45,12 @@
             <!-- 🔹 Sección de Estadísticas -->
             <div id="stats-section" class="section">
                 <h1>📊 Estadísticas</h1>
-                <div class="stats-grid">
-                    <div class="stats-box">
-                        <h2>📅 Eventos del Calendario</h2>
-                        <div id="calendar-content" class="calendar-container">
-                            <h3>Eventos para Hoy:</h3>
-                            <!-- ...existing code... -->
-                        </div>
+                <div class="stats-container">
+                    <div id="calendar-content" class="calendar-section">
+                        <!-- Contenido del calendario aquí -->
                     </div>
-                    <div class="stats-box">
-                        <h2>🏃 Actividades de Strava</h2>
-                        <div id="strava-content"></div>
+                    <div id="strava-content" class="strava-section">
+                        <!-- Contenido de Strava aquí -->
                     </div>
                 </div>
             </div>
@@ -120,6 +115,27 @@
             mainContent.classList.remove('hidden'); // Mostrar el contenido principal
         }
     </script>
-    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <!-- Eliminar o comentar cualquier referencia a scripts.js si existe -->
+    <!-- <script src="{{ url_for('static', filename='js/scripts.js') }}"></script> -->
+
+    <!-- Actualizar la sección de scripts al final del body -->
+    <script>
+        // Función para invalidar la caché de scripts
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.type = 'module';
+                script.src = `${src}?_=${Date.now()}`; // Añadir timestamp
+                script.onload = resolve;
+                script.onerror = reject;
+                document.body.appendChild(script);
+            });
+        }
+    </script>
+
+    <!-- Cargar el script principal con timestamp -->
+    <script type="module">
+        loadScript('{{ url_for("static", filename="js/main.js") }}').catch(console.error);
+    </script>
 </body>
 </html>
